@@ -1,53 +1,52 @@
-mode: stg
-env: stg
-appName: ingestor
-domain: stg-ingestor-svc.default.svc.cluster.local
+mode: staging
+env: staging
+domain: "domain"
 readers:
   presto:
-    schema: data
+    schema: grab_x
     port: 8042
 writers:
   grpc:
-    port: 8043
+    port: 8080
+  s3sqs:
+    region: "ap-southeast-1"
+    queue: "queue-url"
+    waitTimeout: 1
+    retries: 5
 storage:
-  dir: /data
+  dir: "/data"
+statsd:
+  host: "statsd-host"
+  port: 8126
+k8s: # Optional value to set in k8s env. when server need liveness & readiness probes
+  probePort: 8082
 tables:
   events:
-    ttl: 3600
-    hashBy: event
-    sortBy: ingested_at
-    schema: "gcs://k8s-online-stg-configs/ingestor/schema.yaml"
-    streams:
-      - pubsub:
-          project: "airasia-opdatalake-stg"
-          topic: "talaria-test"
-          encoder: "json"
+    hashBy: "event"
+    sortBy: "ingested_at"
+    schema: "gcs://k8s-default-stg-configs/ingestor/schema1.yaml"
     compact:
       interval: 60
+      encoder: orc
       nameFunc: "gcs://k8s-online-stg-configs/ingestor/name.lua"
-      sinks:
-        - gcs:
-            bucket: "airasia-opdatalake-stg-datalake"
-            prefix: "sink/"
-            encoder: "orc"
-        - bigquery:
-            project: "airasia-opdatalake-stg"
-            dataset: "eventlog"
-            table: "events"
-            encoder: "block"
-            # do not use the same file for another sink. Create a new one.
-            filter: "gcs://k8s-online-stg-configs/ingestor/filters/cors.lua"
-        - talaria:
-            endpoint: "query.opdl.stg.data.airasiainternal.net:8043"
-            encoder: "orc"
-computed:
-  - name: ingested_at
-    func: "make://timestamp"
-  - name: event_id
-    func: "make://identifier"
-  - name: ctx
-    type: json
-    func: "gcs://k8s-online-stg-configs/ingestor/columns/ctx.lua"
-  - name: ingested_by
-    type: string
-    func: "gcs://k8s-online-stg-configs/ingestor/columns/ingested_by.lua"
+      gcs:
+        bucket: "airasia-opdatalake-stg-datalake"
+        prefix: "sink/"
+      bigquery:
+        project: "airasia-opdatalake-stg"
+        dataset: "eventlog"
+        table: "events"
+    streams:
+      - pubsub:
+          project: my-gcp-project
+          topic: my-topic
+          filter: "gcs://my-bucket/my-function.lua"
+          encoder: json
+      - pubsub:
+          project: my-gcp-project
+          topic: my-topic2
+          encoder: json
+  users:
+    hashBy: "user_id"
+    sortBy: "ingested_at"
+    schema: "gcs://k8s-default-stg-configs/ingestor/schema2.yaml"
