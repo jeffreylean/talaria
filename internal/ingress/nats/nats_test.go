@@ -6,33 +6,13 @@ import (
 
 	"github.com/kelindar/talaria/internal/config"
 	"github.com/kelindar/talaria/internal/monitor"
-	"github.com/nats-io/nats-server/v2/server"
-	natsserver "github.com/nats-io/nats-server/v2/test"
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 )
 
-const TEST_PORT = 8369
-
-func RunServerOnPort(port int) *server.Server {
-	opts := natsserver.DefaultTestOptions
-	opts.Port = port
-	opts.JetStream = true
-	return RunServerWithOptions(&opts)
-}
-
-func RunServerWithOptions(opts *server.Options) *server.Server {
-	return natsserver.RunServer(opts)
-}
-
 func TestSubscribe(t *testing.T) {
-	s := RunServerOnPort(TEST_PORT)
-	defer s.Shutdown()
-
-	sUrl := fmt.Sprintf("nats://127.0.0.1:%d", TEST_PORT)
-
 	conf := &config.NATS{
-		URL:     sUrl,
+		URL:     nats.DefaultURL,
 		Subject: "event.talaria",
 		Queue:   "talarias",
 	}
@@ -40,20 +20,19 @@ func TestSubscribe(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, ingress)
 
-	//Create stream
-	jsCtx, err := ingress.conn.JetStream()
-	assert.Nil(t, err)
-	jsCtx.AddStream(&nats.StreamConfig{Name: "events", Subjects: []string{"event.>"}})
-
 	dataCn := make(chan string)
-	ingress.jetstream.Subscribe(func(msg *nats.Msg) {
-		dataCn <- string(msg.Data)
-	})
+	go func(data chan string) {
+		ingress.subscriber.Subscribe(func(msg *nats.Msg) {
+			dataCn <- string(msg.Data)
+		})
+	}(dataCn)
 
-	p, err := ingress.jetstream.Publish([]byte("test"))
+	p, err := ingress.subscriber.Publish([]byte("test"))
 	assert.NotNil(t, p)
 	assert.Nil(t, err)
 
 	data := <-dataCn
+	fmt.Println(data)
+
 	assert.NotEmpty(t, data)
 }
