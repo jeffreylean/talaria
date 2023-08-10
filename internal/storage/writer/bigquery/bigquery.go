@@ -87,6 +87,7 @@ func New(project, dataset, table, encoding, filter string, monitor monitor.Monit
 		managedwriter.WithDestinationTable(managedwriter.TableParentFromParts(tableRef.ProjectID, tableRef.DatasetID, tableRef.TableID)),
 		managedwriter.WithType(managedwriter.DefaultStream),
 		managedwriter.WithSchemaDescriptor(descriptorProto),
+		managedwriter.EnableWriteRetries(true),
 	)
 	if err != nil {
 		return nil, err
